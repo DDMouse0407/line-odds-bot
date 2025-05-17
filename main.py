@@ -1,75 +1,61 @@
-from flask import Flask, request, abort, jsonify
-
-import os
-
-CHANNEL_ACCESS_TOKEN = os.getenv("CHANNEL_ACCESS_TOKEN")
-CHANNEL_SECRET = os.getenv("CHANNEL_SECRET")
-
+from flask import Flask, request, abort
+from linebot.v3.webhooks import WebhookHandler
 from linebot.v3.messaging import MessagingApi, Configuration, ApiClient
+from linebot.v3.messaging.models import TextMessage
+from linebot.v3.webhooks.models import MessageEvent, TextMessageContent
 
-configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
-with ApiClient(configuration) as api_client:
-    line_bot_api = MessagingApi(api_client)
-from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, TextSendMessage
 import os
-import schedule
-import time
-import threading
-import requests
 
-app = Flask(__name__)
-
-# 用環境變數管理密鑰
+# 讀取環境變數（建議在 Replit 或 Railway 的環境變數設定中輸入）
 CHANNEL_ACCESS_TOKEN = os.getenv("CHANNEL_ACCESS_TOKEN")
 CHANNEL_SECRET = os.getenv("CHANNEL_SECRET")
-USER_ID = os.getenv("USER_ID")  # 你的 LINE 個人 ID，用於推播
 
-line_bot_api = LineBotApi(CHANNEL_ACCESS_TOKEN)
+# 初始化 LINE Messaging API
+configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
+api_client = ApiClient(configuration)
+line_bot_api = MessagingApi(api_client)
 handler = WebhookHandler(CHANNEL_SECRET)
 
-@app.route("/")
-def home():
-    return "LINE Bot 已部署成功！"
+# 初始化 Flask 應用
+app = Flask(__name__)
 
-@app.route("/callback", methods=["POST"])
+# Webhook 接收處理
+@app.route("/callback", methods=['POST'])
 def callback():
-    signature = request.headers["X-Line-Signature"]
+    signature = request.headers.get('X-Line-Signature')
     body = request.get_data(as_text=True)
 
     try:
         handler.handle(body, signature)
-    except InvalidSignatureError:
+    except Exception as e:
+        print("LINE Webhook 錯誤:", str(e))
         abort(400)
 
-    return "OK"
+    return 'OK'
 
-# 處理文字訊息
-@handler.add(MessageEvent, message=TextMessage)
+# 處理文字訊息事件
+@handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
-    if event.message.text == "/test":
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text="你好，我收到你的訊息了！")
-        )
+    user_message = event.message.text
+    reply_text = f"你說的是：{user_message}"
+    line_bot_api.reply_message(
+        event.reply_token,
+        messages=[TextMessage(text=reply_text)]
+    )
 
-# 🕒 自動推播函式（每小時）
-def push_odds_data():
+# 測試用網址路徑（可在瀏覽器上直接觸發）
+@app.route("/test", methods=["GET"])
+def test_push():
+    # 替換為你的 LINE 使用者 ID（或抓取 event.source.user_id）
+    user_id = "YOUR_USER_ID"
     try:
-        # 範例：你之後可以換成爬蟲或 API 整合
-        message = "🏀 賠率推播測試\n\n📅 開賽時間：今晚 8:00\n對戰隊伍：湖人 vs 勇士\n推薦下注：勇士 -3.5"
-        line_bot_api.push_message(USER_ID, TextSendMessage(text=message))
+        line_bot_api.push_message(
+            to=user_id,
+            messages=[TextMessage(text="這是 /test 測試推播訊息")]
+        )
+        return "已推播測試訊息"
     except Exception as e:
-        print("推播失敗：", e)
-
-def schedule_thread():
-    schedule.every().hour.do(push_odds_data)
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
-
-# 啟動排程線程
-threading.Thread(target=schedule_thread, daemon=True).start()
+        return f"推播失敗: {e}"
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    app.run(host='0.0.0.0', port=3000)
