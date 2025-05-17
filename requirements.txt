@@ -3,3 +3,4 @@ python-dotenv
 line-bot-sdk
 requests
 apscheduler
+beautifulsoup4
