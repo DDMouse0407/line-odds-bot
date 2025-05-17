@@ -1,36 +1,11 @@
-import os
-import json
-import requests
-from flask import Flask, request, abort
-from dotenv import load_dotenv
-from apscheduler.schedulers.background import BackgroundScheduler
-from datetime import datetime, timedelta
-
-from linebot.v3.webhook import WebhookHandler
-from linebot.v3.webhooks import MessageEvent, TextMessageContent
-from linebot.v3.messaging import MessagingApi, Configuration, ApiClient
-from linebot.v3.messaging.models import TextMessage, PushMessageRequest, ReplyMessageRequest
-
-# 載入環境變數
-load_dotenv()
-CHANNEL_ACCESS_TOKEN = os.getenv("CHANNEL_ACCESS_TOKEN")
-CHANNEL_SECRET = os.getenv("CHANNEL_SECRET")
-USER_ID = os.getenv("USER_ID")
-
-app = Flask(__name__)
-
-# 初始化 LINE v3 SDK
-configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
-api_client = ApiClient(configuration)
-line_bot_api = MessagingApi(api_client)
-handler = WebhookHandler(CHANNEL_SECRET)
+# ... (前略，import 與變數不變)
 
 @app.route("/")
 def home():
     return "✅ LINE Bot 全功能啟動中（v3 SDK）"
 
-@app.route("/webhook", methods=["POST"])
-def webhook():
+@app.route("/callback", methods=["POST"])  # ✅ LINE 預設路徑
+def callback():
     signature = request.headers.get("X-Line-Signature")
     body = request.get_data(as_text=True)
 
@@ -66,15 +41,13 @@ def handle_message(event):
         )
     )
 
-# ========== 推播分析邏輯 ==========
+# === 推播分析邏輯 ===
 
 def generate_odds_report():
     try:
-        # 假資料：請日後替換成 Oddspedia 賠率分析結果
         now = datetime.now().strftime("%m/%d %H:%M")
         text = f"📊 賠率分析更新時間：{now}\n\n"
 
-        # 範例分類
         text += "⚽ 各國足球\n"
         text += "🕓 18:00｜利物浦 vs 曼城\n推薦：利物浦 +1.5\n分析：主隊近期連勝，客隊傷兵多\n\n"
 
@@ -89,12 +62,11 @@ def generate_odds_report():
         return f"❌ 賠率分析錯誤：{str(e)}"
 
 def query_odds(keyword):
-    # 假查詢邏輯，日後可從已分析過的資料中找符合關鍵字的賽事
     if "湖人" in keyword:
         return "🏀 湖人賽事推薦：\n🕓 20:30｜湖人 vs 勇士\n推薦：大分 228.5\n分析：高得分趨勢 + 對戰歷史爆分"
     return f"❌ 查無 {keyword} 相關資料"
 
-# ========== 定時推播 ==========
+# === 定時推播 ===
 
 scheduler = BackgroundScheduler()
 
