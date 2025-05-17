@@ -1,44 +1,39 @@
-import requests
-from bs4 import BeautifulSoup
+# 模擬 Oddspedia 抓資料（未串接 API，日後可用 Selenium/Requests 完整替換）
 from datetime import datetime
+from predict import analyze_and_predict
 
-# 範例：抓取 NBA 比賽賠率（Oddspedia）
-def fetch_odds_nba():
-    url = "https://oddspedia.com/basketball/usa/nba"
-    headers = {
-        "User-Agent": "Mozilla/5.0"
-    }
-    try:
-        response = requests.get(url, headers=headers)
-        soup = BeautifulSoup(response.text, "html.parser")
+def fetch_all_odds_report(keyword=None):
+    now = datetime.now().strftime("%m/%d %H:%M")
+    text = f"📊 賠率分析更新時間：{now}\n\n"
 
-        results = []
+    sample_matches = [
+        {
+            "sport": "⚽ 各國足球",
+            "time": "21:00",
+            "match": "利物浦 vs 曼城",
+            "team": "利物浦",
+            "odds": "+1.5"
+        },
+        {
+            "sport": "🏀 美國籃球",
+            "time": "08:30",
+            "match": "湖人 vs 勇士",
+            "team": "大分",
+            "odds": "228.5"
+        },
+        {
+            "sport": "⚾ 台韓日美棒球",
+            "time": "17:00",
+            "match": "阪神虎 vs 巨人",
+            "team": "巨人",
+            "odds": "-1.5"
+        }
+    ]
 
-        for match in soup.select(".eventRow"):
-            try:
-                teams = match.select_one(".eventCell__name").get_text(separator=" vs ").strip()
-                start_time = match.select_one(".eventCell__time").text.strip()
+    for item in sample_matches:
+        if keyword and keyword not in item["match"]:
+            continue
+        analysis = analyze_and_predict(item["match"], item["team"], item["odds"])
+        text += f"{item['sport']}\n🕓 {item['time']}｜{item['match']}\n推薦：{item['team']} {item['odds']}\n分析：{analysis}\n\n"
 
-                odds_cells = match.select(".bookmakerItem__odds")
-                if len(odds_cells) >= 2:
-                    home_odds = odds_cells[0].text.strip()
-                    away_odds = odds_cells[1].text.strip()
-                else:
-                    continue
-
-                results.append({
-                    "teams": teams,
-                    "start_time": start_time,
-                    "home_odds": home_odds,
-                    "away_odds": away_odds,
-                    "recommend": "主勝" if float(home_odds) < float(away_odds) else "客勝",
-                })
-
-            except Exception:
-                continue
-
-        return results
-
-    except Exception as e:
-        print("❌ 抓取失敗：", str(e))
-        return []
+    return text.strip()
