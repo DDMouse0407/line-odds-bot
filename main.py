@@ -1,22 +1,33 @@
-from flask import Flask, request, abort
-from linebot import LineBotApi, WebhookHandler
-from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, TextSendMessage
 import os
+import json
+import requests
+from flask import Flask, request, abort
+from dotenv import load_dotenv
 
-app = Flask(__name__)
+from linebot.v3.messaging import MessagingApiClient, ReplyMessageRequest, TextMessage
+from linebot.v3.webhook import WebhookHandler
+from linebot.v3.webhooks import MessageEvent, TextMessageContent
+from linebot.v3.exceptions import InvalidSignatureError
 
-# 從環境變數取得金鑰
+# 載入環境變數
+load_dotenv()
+
 CHANNEL_ACCESS_TOKEN = os.getenv("CHANNEL_ACCESS_TOKEN")
 CHANNEL_SECRET = os.getenv("CHANNEL_SECRET")
 
-line_bot_api = LineBotApi(CHANNEL_ACCESS_TOKEN)
-handler = WebhookHandler(CHANNEL_SECRET)
+app = Flask(__name__)
 
-# webhook 接收訊息的路由
-@app.route("/callback", methods=['POST'])
-def callback():
-    signature = request.headers['X-Line-Signature']
+# 初始化 LINE Bot v3 客戶端
+line_bot_api = MessagingApiClient(channel_access_token=CHANNEL_ACCESS_TOKEN)
+handler = WebhookHandler(channel_secret=CHANNEL_SECRET)
+
+@app.route("/")
+def home():
+    return "LINE Bot is running!"
+
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    signature = request.headers["X-Line-Signature"]
     body = request.get_data(as_text=True)
 
     try:
@@ -24,28 +35,31 @@ def callback():
     except InvalidSignatureError:
         abort(400)
 
-    return 'OK'
+    return "OK"
 
-# 接收文字訊息並回覆
-@handler.add(MessageEvent, message=TextMessage)
-def handle_message(event):
-    user_msg = event.message.text
-    line_bot_api.reply_message(
-        event.reply_token,
-        TextSendMessage(text=f"你說的是：{user_msg}")
-    )
-
-# 測試推播用的路由（可以瀏覽器訪問）
 @app.route("/test", methods=["GET"])
 def test_push():
-    try:
-        line_bot_api.push_message(
-            to="YOUR_USER_ID",  # 換成你自己的 LINE 使用者 ID
-            messages=TextSendMessage(text="這是測試推播訊息")
+    user_id = os.getenv("USER_ID")  # 測試推播目標
+    message = "✅ 測試成功：LINE Bot 正常推播。"
+    line_bot_api.reply_message(
+        ReplyMessageRequest(
+            to=user_id,
+            messages=[TextMessage(text=message)]
         )
-        return "推播成功"
-    except Exception as e:
-        return f"推播失敗: {e}"
+    )
+    return "測試訊息已送出"
+
+@handler.add(MessageEvent, message=TextMessageContent)
+def handle_message(event):
+    text = event.message.text.strip()
+
+    if text == "/test":
+        line_bot_api.reply_message(
+            ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text="這是 /test 指令回覆。✅ Bot 正常運作！")]
+            )
+        )
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=3000)
