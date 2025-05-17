@@ -1,5 +1,8 @@
-from flask import Flask, request, abort
-from linebot import LineBotApi, WebhookHandler
+from linebot.v3.messaging import MessagingApi, Configuration, ApiClient
+
+configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
+with ApiClient(configuration) as api_client:
+    line_bot_api = MessagingApi(api_client)
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
 import os
