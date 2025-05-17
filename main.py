@@ -1,4 +1,3 @@
-# ========= 1. 套件載入 =========
 import os
 import json
 import requests
@@ -12,26 +11,23 @@ from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from linebot.v3.messaging import MessagingApi, Configuration, ApiClient
 from linebot.v3.messaging.models import TextMessage, PushMessageRequest, ReplyMessageRequest
 
-# ========= 2. Flask 初始化 =========
-app = Flask(__name__)
-
-# ========= 3. 載入環境變數 =========
+# ======== 環境與初始化 ========
 load_dotenv()
 CHANNEL_ACCESS_TOKEN = os.getenv("CHANNEL_ACCESS_TOKEN")
 CHANNEL_SECRET = os.getenv("CHANNEL_SECRET")
 USER_ID = os.getenv("USER_ID")
 
-# ========= 4. 初始化 LINE BOT v3 SDK =========
+app = Flask(__name__)
+
 configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
 api_client = ApiClient(configuration)
 line_bot_api = MessagingApi(api_client)
 handler = WebhookHandler(CHANNEL_SECRET)
 
-# ========= 5. 路由設定 =========
-
+# ======== 路由與 Webhook ========
 @app.route("/")
 def home():
-    return "✅ LINE Bot 全功能啟動中（v3 SDK）"
+    return "✅ LINE Bot 已啟動"
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
@@ -41,7 +37,7 @@ def webhook():
     try:
         handler.handle(body, signature)
     except Exception as e:
-        print("❌ Webhook Error:", e)
+        print("Webhook Error:", e)
         abort(400)
 
     return "OK"
@@ -49,71 +45,87 @@ def webhook():
 @app.route("/test", methods=["GET"])
 def test_push():
     text = generate_odds_report()
-    message = TextMessage(text=text)
-    line_bot_api.push_message(PushMessageRequest(to=USER_ID, messages=[message]))
-    return "✅ 已手動推播測試內容"
+    line_bot_api.push_message(PushMessageRequest(to=USER_ID, messages=[TextMessage(text=text)]))
+    return "✅ 測試訊息已推播"
 
-# ========= 6. LINE 訊息處理 =========
-
+# ======== 訊息處理指令 ========
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
     text = event.message.text.strip()
-
     if text.startswith("/查詢"):
-        query = text.replace("/查詢", "").strip()
-        reply_text = query_odds(query)
+        keyword = text.replace("/查詢", "").strip()
+        reply_text = query_odds(keyword)
     else:
-        reply_text = "✅ 指令成功！目前支援：\n/test（手動推播）\n/查詢 [隊伍或聯賽]"
+        reply_text = "✅ 指令成功\n/test（手動推播）\n/查詢 [隊名或聯賽名]"
+    line_bot_api.reply_message(ReplyMessageRequest(reply_token=event.reply_token, messages=[TextMessage(text=reply_text)]))
 
-    line_bot_api.reply_message(
-        ReplyMessageRequest(
-            reply_token=event.reply_token,
-            messages=[TextMessage(text=reply_text)]
-        )
-    )
-
-# ========= 7. 推播邏輯（分析假資料） =========
-
+# ======== 賠率分析與推播 ========
 def generate_odds_report():
-    try:
-        now = datetime.now().strftime("%m/%d %H:%M")
-        text = f"📊 賠率分析更新時間：{now}\n\n"
+    now = datetime.now().strftime("%m/%d %H:%M")
+    text = f"📊 賠率分析更新時間：{now}\n\n"
 
-        text += "⚽ 各國足球\n"
-        text += "🕓 18:00｜利物浦 vs 曼城\n推薦：利物浦 +1.5\n分析：主隊近期連勝，客隊傷兵多\n\n"
+    # 模擬分類與判斷（可改成抓 Oddspedia）
+    games = [
+        {
+            "type": "⚽ 各國足球",
+            "time": "18:00",
+            "match": "利物浦 vs 曼城",
+            "recommend": "利物浦 +1.5",
+            "analysis": "主隊近期4連勝，客隊有主力中場傷缺，讓分盤偏深，可能誘導買曼城"
+        },
+        {
+            "type": "🏀 美國籃球",
+            "time": "20:30",
+            "match": "湖人 vs 勇士",
+            "recommend": "大分 228.5",
+            "analysis": "兩隊對戰常爆分，近期皆偏高比分，盤口大分水位異常上升"
+        },
+        {
+            "type": "⚾ 台韓日美棒球",
+            "time": "17:00",
+            "match": "阪神虎 vs 巨人",
+            "recommend": "巨人 -1.5",
+            "analysis": "阪神王牌投手缺陣，巨人近期3連勝，盤口讓分明顯，有利巨人"
+        }
+    ]
 
-        text += "🏀 美國籃球\n"
-        text += "🕓 20:30｜湖人 vs 勇士\n推薦：大分 228.5\n分析：兩隊對戰常爆分 + 防守鬆散\n\n"
+    categorized = {"⚽ 各國足球": [], "🏀 美國籃球": [], "⚾ 台韓日美棒球": []}
+    for g in games:
+        line = f"🕓 {g['time']}｜{g['match']}\n推薦：{g['recommend']}\n分析：{g['analysis']}\n"
+        categorized[g['type']].append(line)
 
-        text += "⚾ 台韓日美棒球\n"
-        text += "🕓 17:00｜阪神虎 vs 巨人\n推薦：巨人 -1.5\n分析：主投ERA極低 + 主場優勢明顯\n\n"
+    for k, v in categorized.items():
+        text += f"{k}\n" + "\n".join(v) + "\n"
 
-        return text
-    except Exception as e:
-        return f"❌ 賠率分析錯誤：{str(e)}"
+    return text
 
+# ======== 關鍵字查詢功能 ========
 def query_odds(keyword):
-    if "湖人" in keyword:
-        return "🏀 湖人賽事推薦：\n🕓 20:30｜湖人 vs 勇士\n推薦：大分 228.5\n分析：高得分趨勢 + 對戰歷史爆分"
-    return f"❌ 查無 {keyword} 相關資料"
+    all_games = {
+        "利物浦": "⚽ 利物浦 vs 曼城\n推薦：利物浦 +1.5\n分析：主隊4連勝＋曼城主力傷缺",
+        "湖人": "🏀 湖人 vs 勇士\n推薦：大分 228.5\n分析：雙方對戰常爆分",
+        "阪神": "⚾ 阪神虎 vs 巨人\n推薦：巨人 -1.5\n分析：阪神缺主投＋巨人三連勝"
+    }
+    result = []
+    for key, val in all_games.items():
+        if keyword in key:
+            result.append(val)
+    return "\n\n".join(result) if result else f"❌ 查無「{keyword}」相關賽事"
 
-# ========= 8. 定時推播排程器 =========
-
+# ======== 自動推播排程 ========
 scheduler = BackgroundScheduler()
 
 @scheduler.scheduled_job('cron', minute='0')  # 每小時整點推播
 def auto_push():
     try:
         text = generate_odds_report()
-        message = TextMessage(text=text)
-        line_bot_api.push_message(PushMessageRequest(to=USER_ID, messages=[message]))
-        print("✅ 自動推播完成")
+        line_bot_api.push_message(PushMessageRequest(to=USER_ID, messages=[TextMessage(text=text)]))
+        print("✅ 自動推播成功")
     except Exception as e:
         print("❌ 自動推播失敗：", e)
 
 scheduler.start()
 
-# ========= 9. 執行入口 =========
-
+# ======== 啟動應用 ========
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=3000)
