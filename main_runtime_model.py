@@ -6,11 +6,11 @@ from dotenv import load_dotenv
 from flask import Flask, request, abort
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
+from googletrans import Translator
 
 from proxy.odds_fetcher import get_odds_from_proxy
 from proxy.odds_proxy import fetch_oddspedia_soccer
 
-from googletrans import Translator
 from linebot.v3.messaging import MessagingApi, Configuration, ApiClient
 from linebot.v3.messaging.models import TextMessage, PushMessageRequest, ReplyMessageRequest
 from linebot.v3.webhooks.models import CallbackRequest, MessageEvent, TextMessageContent
@@ -26,7 +26,7 @@ api_client = ApiClient(configuration)
 line_bot_api = MessagingApi(api_client)
 app = Flask(__name__)
 
-# === 動態訓練模型 ===
+# === 模型訓練 ===
 def train_models():
     nba_path = 'data/nba/nba_history_2023_2024.csv'
     if not os.path.exists(nba_path):
@@ -38,14 +38,9 @@ def train_models():
     nba_df['over_under'] = ((nba_df['home_score'] + nba_df['away_score']) > 220).astype(int)
 
     X = nba_df[['home_score', 'away_score']]
-    y_win = nba_df['home_win']
-    y_spread = nba_df['spread']
-    y_over = nba_df['over_under']
-
-    model_win = LogisticRegression().fit(X, y_win)
-    model_spread = LogisticRegression().fit(X, y_spread)
-    model_over = LogisticRegression().fit(X, y_over)
-
+    model_win = LogisticRegression().fit(X, nba_df['home_win'])
+    model_spread = LogisticRegression().fit(X, nba_df['spread'])
+    model_over = LogisticRegression().fit(X, nba_df['over_under'])
     return model_win, model_spread, model_over
 
 model_win, model_spread, model_over = train_models()
@@ -60,14 +55,19 @@ else:
 
 translator = Translator()
 
-# 同步翻譯
 def translate_team_name(name):
+    if name in team_name_cache:
+        return team_name_cache[name]
     try:
-        return translator.translate(name, dest="zh-tw").text
-    except:
-        return name  # 如果失敗就顯示原名
+        translated = translator.translate(name, dest='zh-tw').text
+        team_name_cache[name] = translated
+        with open(CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(team_name_cache, f, ensure_ascii=False)
+        return translated
+    except Exception:
+        return name
 
-# 模擬資料（後續會改成即時資料）
+# 模擬資料（未來可串接即時資料）
 def get_games(sport="nba"):
     if sport == "nba":
         return [{"home_team": "Lakers", "away_team": "Warriors", "home_score": 110, "away_score": 105}]
@@ -77,7 +77,7 @@ def get_games(sport="nba"):
         return [{"home_team": "Liverpool", "away_team": "Man City", "home_score": 2, "away_score": 3}]
     return []
 
-# AI 推薦產生器
+# AI 推薦訊息產生
 def generate_ai_prediction(sport="nba"):
     games = get_games(sport)
     odds_data = get_odds_from_proxy()
@@ -90,7 +90,10 @@ def generate_ai_prediction(sport="nba"):
         spread = model_spread.predict(X)[0]
         ou = model_over.predict(X)[0]
 
-        msg += f"{translate_team_name(g['home_team'])} vs {translate_team_name(g['away_team'])}\n"
+        home = translate_team_name(g["home_team"])
+        away = translate_team_name(g["away_team"])
+
+        msg += f"{home} vs {away}\n"
         msg += f"預測勝方：{'主隊' if win else '客隊'}\n"
         msg += f"推薦盤口：{'主隊過盤' if spread else '客隊受讓'}\n"
         msg += f"大小分推薦：{'大分' if ou else '小分'}\n"
@@ -103,6 +106,7 @@ def generate_ai_prediction(sport="nba"):
         msg += "\n"
     return msg
 
+# === LINE Webhook ===
 @app.route("/webhook", methods=["POST"])
 def webhook():
     try:
@@ -117,12 +121,12 @@ def webhook():
     return "OK"
 
 def handle_message(event):
-    user_text = event.message.text.strip()
-    if user_text.startswith("/查詢") or user_text == "/NBA查詢":
+    text = event.message.text.strip()
+    if text.startswith("/查詢") or text == "/NBA查詢":
         reply = generate_ai_prediction("nba")
-    elif user_text == "/MLB查詢":
+    elif text == "/MLB查詢":
         reply = generate_ai_prediction("mlb")
-    elif user_text == "/足球查詢":
+    elif text == "/足球查詢":
         reply = generate_ai_prediction("soccer")
     else:
         reply = (
@@ -132,20 +136,18 @@ def handle_message(event):
             "/足球查詢\n"
             "/test 測試推播"
         )
-
     line_bot_api.reply_message(
-        ReplyMessageRequest(
-            reply_token=event.reply_token,
-            messages=[TextMessage(text=reply)]
-        )
+        ReplyMessageRequest(reply_token=event.reply_token, messages=[TextMessage(text=reply)])
     )
 
+# 測試推播
 @app.route("/test", methods=["GET"])
 def test_push():
     msg = generate_ai_prediction()
     line_bot_api.push_message(PushMessageRequest(to=USER_ID, messages=[TextMessage(text=msg)]))
     return "✅ 測試推播完成"
 
+# 賠率代理 API
 @app.route("/odds-proxy", methods=["GET"])
 def odds_proxy():
     return fetch_oddspedia_soccer()
@@ -154,6 +156,7 @@ def odds_proxy():
 def home():
     return "✅ LINE Bot v3 運作中"
 
+# 定時推播任務
 scheduler = BackgroundScheduler()
 
 @scheduler.scheduled_job("cron", minute="0")
