@@ -128,8 +128,7 @@ def generate_ai_prediction(sport="nba"):
     msg = f"{title} 推薦（{datetime.now().strftime('%m/%d')}）\n\n"
 
     if not games:
-        msg += "今日無比賽數據可供預測。
-"
+        msg += "今日無比賽數據可供預測。"
         return msg
 
     for g in games:
@@ -140,22 +139,16 @@ def generate_ai_prediction(sport="nba"):
         home = translate_team_name(g["home_team"])
         away = translate_team_name(g["away_team"])
 
-        msg += f"{home} vs {away}
-"
-        msg += f"預測勝方：{'主隊' if win else '客隊'}
-"
-        msg += f"推薦盤口：{'主隊過盤' if spread else '客隊受讓'}
-"
-        msg += f"大小分推薦：{'大分' if ou else '小分'}
-"
+        msg += f"{home} vs {away}"
+        msg += f"預測勝方：{'主隊' if win else '客隊'}"
+        msg += f"推薦盤口：{'主隊過盤' if spread else '客隊受讓'}"
+        msg += f"大小分推薦：{'大分' if ou else '小分'}"
 
         for o in odds_data:
             if g["home_team"] in o["match"] and g["away_team"] in o["match"]:
-                msg += f"實際賠率：{o['home_odds']} / {o['away_odds']}
-"
+                msg += f"實際賠率：{o['home_odds']} / {o['away_odds']}"
                 break
-        msg += "
-"
+        msg += ""
     return msg
 
 # === Webhook ===
@@ -186,14 +179,10 @@ def handle_message(event):
         reply = generate_ai_prediction("soccer")
     else:
         reply = (
-            "請輸入以下指令查詢推薦：
-"
-            "/查詢 或 /NBA查詢
-"
-            "/MLB查詢 /NPB查詢 /KBO查詢
-"
-            "/足球查詢
-"
+            "請輸入以下指令查詢推薦："
+            "/查詢 或 /NBA查詢"
+            "/MLB查詢 /NPB查詢 /KBO查詢"
+            "/足球查詢"
             "/test 測試推播"
         )
 
