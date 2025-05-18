@@ -1,14 +1,21 @@
 import os
 import json
 import pandas as pd
-import zipfile
-with zipfile.ZipFile("models/models_package.zip", 'r') as zip_ref:
-    zip_ref.extractall("models/")
-import cloudpickle  # 改用 cloudpickle 載入模型
+import subprocess
 from dotenv import load_dotenv
 from flask import Flask, request, abort
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
+import joblib  # 改回 joblib 載入
+
+# 執行模型訓練腳本
+subprocess.run(["python", "train_models_runtime.py"])
+
+# === 初始化 ===
+load_dotenv()
+CHANNEL_SECRET = os.getenv("CHANNEL_SECRET")
+CHANNEL_ACCESS_TOKEN = os.getenv("CHANNEL_ACCESS_TOKEN")
+USER_ID = os.getenv("USER_ID")
 
 from proxy.odds_fetcher import get_odds_from_proxy
 from proxy.odds_proxy import fetch_oddspedia_soccer
@@ -17,25 +24,15 @@ from linebot.v3.messaging import MessagingApi, Configuration, ApiClient
 from linebot.v3.messaging.models import TextMessage, PushMessageRequest, ReplyMessageRequest
 from linebot.v3.webhooks.models import CallbackRequest, MessageEvent, TextMessageContent
 
-# === 初始化 ===
-load_dotenv()
-CHANNEL_SECRET = os.getenv("CHANNEL_SECRET")
-CHANNEL_ACCESS_TOKEN = os.getenv("CHANNEL_ACCESS_TOKEN")
-USER_ID = os.getenv("USER_ID")
-
 configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
 api_client = ApiClient(configuration)
 line_bot_api = MessagingApi(api_client)
 app = Flask(__name__)
 
-# === 載入模型（cloudpickle） ===
-def load_model(path):
-    with open(path, "rb") as f:
-        return cloudpickle.load(f)
-
-model_win = load_model("models/model_home_win.pkl")
-model_spread = load_model("models/model_spread.pkl")
-model_over = load_model("models/model_over.pkl")
+# === 載入模型 ===
+model_win = joblib.load("models/model_home_win.pkl")
+model_spread = joblib.load("models/model_spread.pkl")
+model_over = joblib.load("models/model_over.pkl")
 
 # 模擬資料
 def get_games(sport="nba"):
