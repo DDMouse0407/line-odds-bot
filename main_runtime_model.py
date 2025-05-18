@@ -127,8 +127,6 @@ def generate_ai_prediction(sport="nba"):
     title = title_map.get(sport, "📊 AI 賽事")
     msg = f"{title} 推薦（{datetime.now().strftime('%m/%d')}）\n\n"
 
-"
-
     if not games:
         msg += "今日無比賽數據可供預測。
 "
