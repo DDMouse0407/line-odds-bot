@@ -180,6 +180,22 @@ def test_push():
     line_bot_api.push_message(PushMessageRequest(to=USER_ID, messages=[TextMessage(text=msg)]))
     return "✅ 測試推播完成"
 
+@app.route("/odds-proxy", methods=["GET"])
+def odds_proxy():
+    try:
+        odds_data = fetch_oddspedia_soccer()
+        return {
+            "status": "success",
+            "data": odds_data
+        }
+    except Exception as e:
+        print("賠率 API 錯誤：", e)
+        return {
+            "status": "error",
+            "message": str(e),
+            "data": []
+        }
+
 @app.route("/")
 def home():
     return "✅ LINE Bot 運作中"
