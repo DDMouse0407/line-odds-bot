@@ -125,7 +125,7 @@ def generate_ai_prediction(sport="nba"):
     odds_data = get_odds_from_proxy()
     title_map = {"nba": "🏀 NBA", "mlb": "⚾ MLB", "npb": "⚾ NPB", "kbo": "⚾ KBO", "soccer": "⚽ SOCCER"}
     title = title_map.get(sport, "📊 AI 賽事")
-    msg = f"{title} 推薦（{datetime.now().strftime('%m/%d')}）
+    msg = f"{title} 推薦（{datetime.now().strftime('%m/%d')}）\n\n"
 
 "
 
