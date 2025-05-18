@@ -9,16 +9,21 @@ def get_games_from_sofascore(sport="nba"):
         "npb": "/baseball/japan/pro-yakyu-npb",
         "soccer": "/football"
     }
-    
-    url = f"https://sofascore-proxy-production.up.railway.app{url_map.get(sport)}"
+
+    base_url = "https://sofascore-proxy-production.up.railway.app"
+    path = url_map.get(sport)
+    if not path:
+        return []
+
+    full_url = f"{base_url}{path}"
     headers = {
         "User-Agent": "Mozilla/5.0"
     }
 
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(full_url, headers=headers, timeout=10)
         soup = BeautifulSoup(response.text, "html.parser")
-        game_blocks = soup.select("div.eventRow__main")[:5]  # 抓前五場
+        game_blocks = soup.select("div.eventRow__main")[:5]  # 抓取前五場示意
 
         games = []
         for block in game_blocks:
