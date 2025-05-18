@@ -132,11 +132,15 @@ def generate_ai_prediction(sport="nba"):
 # === LINE Webhook ===
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    body = request.get_data(as_text=True)
-    events = CallbackRequest.from_json(body).events
-    for event in events:
-        if isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent):
-            handle_message(event)
+    try:
+        body = request.get_data(as_text=True)
+        events = CallbackRequest.from_json(body).events
+        for event in events:
+            if isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent):
+                handle_message(event)
+    except Exception as e:
+        print("Webhook error:", e)
+        abort(400)
     return "OK"
 
 def handle_message(event):
