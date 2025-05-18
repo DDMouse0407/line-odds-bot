@@ -15,8 +15,6 @@ app = Flask(__name__)  # 這一行要放最前面
 def odds_proxy():
     result = fetch_oddspedia_soccer()
     return result
-
-# ...後面維持原樣...
 from linebot.v3.webhooks import WebhookHandler
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from linebot.v3.messaging import MessagingApi, Configuration, ApiClient
