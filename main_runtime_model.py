@@ -10,6 +10,7 @@ from datetime import datetime
 from proxy.odds_fetcher import get_odds_from_proxy
 from proxy.odds_proxy import fetch_oddspedia_soccer
 
+from googletrans import Translator
 from linebot.v3.messaging import MessagingApi, Configuration, ApiClient
 from linebot.v3.messaging.models import TextMessage, PushMessageRequest, ReplyMessageRequest
 from linebot.v3.webhooks.models import CallbackRequest, MessageEvent, TextMessageContent
@@ -49,6 +50,28 @@ def train_models():
 
 model_win, model_spread, model_over = train_models()
 
+# === Google 翻譯隊名快取 ===
+CACHE_FILE = "team_translation_cache.json"
+if os.path.exists(CACHE_FILE):
+    with open(CACHE_FILE, "r", encoding="utf-8") as f:
+        team_name_cache = json.load(f)
+else:
+    team_name_cache = {}
+
+translator = Translator()
+
+def translate_team_name(name):
+    if name in team_name_cache:
+        return team_name_cache[name]
+    try:
+        result = translator.translate(name, src="en", dest="zh-tw")
+        team_name_cache[name] = result.text
+        with open(CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(team_name_cache, f, ensure_ascii=False)
+        return result.text
+    except:
+        return name
+
 # 模擬資料（後續會改成即時資料）
 def get_games(sport="nba"):
     if sport == "nba":
@@ -72,7 +95,7 @@ def generate_ai_prediction(sport="nba"):
         spread = model_spread.predict(X)[0]
         ou = model_over.predict(X)[0]
 
-        msg += f"{g['home_team']} vs {g['away_team']}\n"
+        msg += f"{translate_team_name(g['home_team'])} vs {translate_team_name(g['away_team'])}\n"
         msg += f"預測勝方：{'主隊' if win else '客隊'}\n"
         msg += f"推薦盤口：{'主隊過盤' if spread else '客隊受讓'}\n"
         msg += f"大小分推薦：{'大分' if ou else '小分'}\n"
@@ -85,7 +108,6 @@ def generate_ai_prediction(sport="nba"):
         msg += "\n"
     return msg
 
-# === Webhook ===
 @app.route("/webhook", methods=["POST"])
 def webhook():
     try:
@@ -99,7 +121,6 @@ def webhook():
         abort(400)
     return "OK"
 
-# === 訊息處理邏輯 ===
 def handle_message(event):
     user_text = event.message.text.strip()
     if user_text.startswith("/查詢") or user_text == "/NBA查詢":
@@ -124,14 +145,12 @@ def handle_message(event):
         )
     )
 
-# === 推播功能 ===
 @app.route("/test", methods=["GET"])
 def test_push():
     msg = generate_ai_prediction()
     line_bot_api.push_message(PushMessageRequest(to=USER_ID, messages=[TextMessage(text=msg)]))
     return "✅ 測試推播完成"
 
-# === 賠率 API ===
 @app.route("/odds-proxy", methods=["GET"])
 def odds_proxy():
     return fetch_oddspedia_soccer()
@@ -140,7 +159,6 @@ def odds_proxy():
 def home():
     return "✅ LINE Bot v3 運作中"
 
-# === 自動推播任務 ===
 scheduler = BackgroundScheduler()
 
 @scheduler.scheduled_job("cron", minute="0")
