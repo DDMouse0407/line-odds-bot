@@ -9,10 +9,14 @@ import joblib
 from proxy.odds_fetcher import get_odds_from_proxy
 from proxy.odds_proxy import fetch_oddspedia_soccer
 
+app = Flask(__name__)  # 這一行要放最前面
+
 @app.route("/odds-proxy", methods=["GET"])
 def odds_proxy():
     result = fetch_oddspedia_soccer()
     return result
+
+# ...後面維持原樣...
 from linebot.v3.webhooks import WebhookHandler
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from linebot.v3.messaging import MessagingApi, Configuration, ApiClient
