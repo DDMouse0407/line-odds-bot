@@ -1,7 +1,7 @@
 import os
 import json
 import pandas as pd
-import joblib
+import cloudpickle  # 改用 cloudpickle 載入模型
 from dotenv import load_dotenv
 from flask import Flask, request, abort
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -25,10 +25,14 @@ api_client = ApiClient(configuration)
 line_bot_api = MessagingApi(api_client)
 app = Flask(__name__)
 
-# === 機器學習模型 ===
-model_win = joblib.load("models/model_home_win.pkl")
-model_spread = joblib.load("models/model_spread.pkl")
-model_over = joblib.load("models/model_over.pkl")
+# === 載入模型（cloudpickle） ===
+def load_model(path):
+    with open(path, "rb") as f:
+        return cloudpickle.load(f)
+
+model_win = load_model("models/model_home_win.pkl")
+model_spread = load_model("models/model_spread.pkl")
+model_over = load_model("models/model_over.pkl")
 
 # 模擬資料
 def get_games(sport="nba"):
