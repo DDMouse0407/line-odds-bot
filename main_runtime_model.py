@@ -84,6 +84,8 @@ def get_games(sport="nba"):
 # AI 推薦訊息產生
 def generate_ai_prediction(sport="nba"):
     games = get_games(sport)
+    print(f"[DEBUG] {sport} games 抓到幾筆：{len(games)}")
+    print(games)
     odds_data = get_odds_from_proxy()
     title = {"nba": "🏀 NBA", "mlb": "⚾ MLB", "soccer": "⚽ 足球"}.get(sport, "📊 AI 賽事")
     msg = f"{title} 推薦（{datetime.now().strftime('%m/%d')}）\n\n"
