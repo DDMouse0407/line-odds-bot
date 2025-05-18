@@ -6,7 +6,12 @@ from dotenv import load_dotenv
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 import joblib
+from proxy.odds_proxy import fetch_oddspedia_soccer
 
+@app.route("/odds-proxy", methods=["GET"])
+def odds_proxy():
+    result = fetch_oddspedia_soccer()
+    return result
 from linebot.v3.webhooks import WebhookHandler
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from linebot.v3.messaging import MessagingApi, Configuration, ApiClient
