@@ -1,44 +1,36 @@
 import os
 import json
 import pandas as pd
-from flask import Flask, request, abort
+import joblib
 from dotenv import load_dotenv
+from flask import Flask, request, abort
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
-import joblib
+
 from proxy.odds_fetcher import get_odds_from_proxy
 from proxy.odds_proxy import fetch_oddspedia_soccer
 
-app = Flask(__name__)  # 這一行要放最前面
-
-@app.route("/odds-proxy", methods=["GET"])
-def odds_proxy():
-    result = fetch_oddspedia_soccer()
-    return result
-from linebot.v3.webhooks import WebhookHandler
-from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from linebot.v3.messaging import MessagingApi, Configuration, ApiClient
-from linebot.v3.messaging.models import TextMessage, ReplyMessageRequest, PushMessageRequest
+from linebot.v3.messaging.models import TextMessage, PushMessageRequest, ReplyMessageRequest
+from linebot.v3.webhooks.models import CallbackRequest, MessageEvent, TextMessageContent
 
-# 載入 .env 環境變數
+# === 初始化 ===
 load_dotenv()
 CHANNEL_SECRET = os.getenv("CHANNEL_SECRET")
 CHANNEL_ACCESS_TOKEN = os.getenv("CHANNEL_ACCESS_TOKEN")
 USER_ID = os.getenv("USER_ID")
 
-# LINE SDK 初始化
 configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
 api_client = ApiClient(configuration)
 line_bot_api = MessagingApi(api_client)
-handler = WebhookHandler(CHANNEL_SECRET)
 app = Flask(__name__)
 
-# 載入模型
+# === 機器學習模型 ===
 model_win = joblib.load("models/model_home_win.pkl")
 model_spread = joblib.load("models/model_spread.pkl")
 model_over = joblib.load("models/model_over.pkl")
 
-# 模擬比賽資料（之後可整合爬蟲或 DB）
+# 模擬資料
 def get_games(sport="nba"):
     if sport == "nba":
         return [{"home_team": "Lakers", "away_team": "Warriors", "home_score": 110, "away_score": 105}]
@@ -48,13 +40,13 @@ def get_games(sport="nba"):
         return [{"home_team": "Liverpool", "away_team": "Man City", "home_score": 2, "away_score": 3}]
     return []
 
-# AI 推薦文字產生器
+# AI 推薦產生器
 def generate_ai_prediction(sport="nba"):
     games = get_games(sport)
-    odds_data = get_odds_from_proxy()  # 加入賠率抓取
+    odds_data = get_odds_from_proxy()
     title = {"nba": "🏀 NBA", "mlb": "⚾ MLB", "soccer": "⚽ 足球"}.get(sport, "📊 AI 賽事")
     msg = f"{title} 推薦（{datetime.now().strftime('%m/%d')}）\n\n"
-    
+
     for g in games:
         X = pd.DataFrame([[g["home_score"], g["away_score"]]], columns=["home_score", "away_score"])
         win = model_win.predict(X)[0]
@@ -66,7 +58,6 @@ def generate_ai_prediction(sport="nba"):
         msg += f"推薦盤口：{'主隊過盤' if spread else '客隊受讓'}\n"
         msg += f"大小分推薦：{'大分' if ou else '小分'}\n"
 
-        # 賠率顯示（模糊比對）
         for o in odds_data:
             if g["home_team"] in o["match"] and g["away_team"] in o["match"]:
                 msg += f"實際賠率：{o['home_odds']} / {o['away_odds']}\n"
@@ -75,30 +66,21 @@ def generate_ai_prediction(sport="nba"):
         msg += "\n"
     return msg
 
-# === Flask 路由 ===
-@app.route("/")
-def home():
-    return "✅ LINE AI 推播機器人正常運行中"
-
+# === Webhook ===
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    signature = request.headers.get("X-Line-Signature")
-    body = request.get_data(as_text=True)
     try:
-        handler.handle(body, signature)
+        body = request.get_data(as_text=True)
+        events = CallbackRequest.from_json(json.loads(body)).events
+        for event in events:
+            if isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent):
+                handle_message(event)
     except Exception as e:
         print("Webhook error:", e)
         abort(400)
     return "OK"
 
-@app.route("/test", methods=["GET"])
-def test_push():
-    msg = generate_ai_prediction()
-    line_bot_api.push_message(PushMessageRequest(to=USER_ID, messages=[TextMessage(text=msg)]))
-    return "✅ 已手動推播"
-
-# LINE 指令處理
-@handler.add(MessageEvent, message=TextMessageContent)
+# === 訊息處理邏輯 ===
 def handle_message(event):
     user_text = event.message.text.strip()
     if user_text.startswith("/查詢") or user_text == "/NBA查詢":
@@ -122,7 +104,24 @@ def handle_message(event):
             messages=[TextMessage(text=reply)]
         )
     )
-# === 定時任務 ===
+
+# === 推播功能 ===
+@app.route("/test", methods=["GET"])
+def test_push():
+    msg = generate_ai_prediction()
+    line_bot_api.push_message(PushMessageRequest(to=USER_ID, messages=[TextMessage(text=msg)]))
+    return "✅ 測試推播完成"
+
+# === 賠率 API ===
+@app.route("/odds-proxy", methods=["GET"])
+def odds_proxy():
+    return fetch_oddspedia_soccer()
+
+@app.route("/")
+def home():
+    return "✅ LINE Bot v3 運作中"
+
+# === 自動推播任務 ===
 scheduler = BackgroundScheduler()
 
 @scheduler.scheduled_job("cron", minute="0")
