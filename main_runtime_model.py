@@ -67,15 +67,20 @@ def translate_team_name(name):
     except Exception:
         return name
 
-# 模擬資料（未來可串接即時資料）
+# 即時資料來源（sofascore）
 def get_games(sport="nba"):
-    return get_games_from_sofascore(sport)
+    if sport == "nba":
+        return get_games_from_sofascore("nba")
     elif sport == "mlb":
-        return [{"home_team": "Yankees", "away_team": "Red Sox", "home_score": 4, "away_score": 6}]
+        return get_games_from_sofascore("mlb")
+    elif sport == "npb":
+        return get_games_from_sofascore("npb")
+    elif sport == "kbo":
+        return get_games_from_sofascore("kbo")
     elif sport == "soccer":
-        return [{"home_team": "Liverpool", "away_team": "Man City", "home_score": 2, "away_score": 3}]
-    return []
-
+        return get_games_from_sofascore("soccer")
+    else:
+        return []
 # AI 推薦訊息產生
 def generate_ai_prediction(sport="nba"):
     games = get_games(sport)
@@ -121,24 +126,29 @@ def webhook():
 
 def handle_message(event):
     text = event.message.text.strip()
-    if text.startswith("/查詢") or text == "/NBA查詢":
-        reply = generate_ai_prediction("nba")
-    elif text == "/MLB查詢":
-        reply = generate_ai_prediction("mlb")
-    elif text == "/足球查詢":
-        reply = generate_ai_prediction("soccer")
+    sport_map = {
+        "/查詢": "nba",
+        "/NBA查詢": "nba",
+        "/MLB查詢": "mlb",
+        "/NPB查詢": "npb",
+        "/KBO查詢": "kbo",
+        "/足球查詢": "soccer"
+    }
+    if text in sport_map:
+        reply = generate_ai_prediction(sport_map[text])
     else:
         reply = (
             "請輸入以下指令查詢推薦：\n"
             "/查詢 或 /NBA查詢\n"
             "/MLB查詢\n"
+            "/NPB查詢\n"
+            "/KBO查詢\n"
             "/足球查詢\n"
             "/test 測試推播"
         )
     line_bot_api.reply_message(
         ReplyMessageRequest(reply_token=event.reply_token, messages=[TextMessage(text=reply)])
     )
-
 # 測試推播
 @app.route("/test", methods=["GET"])
 def test_push():
