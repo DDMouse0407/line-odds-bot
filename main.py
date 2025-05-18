@@ -1,10 +1,10 @@
 import os
 import json
 import pandas as pd
-import cloudpickle  # 改用 cloudpickle 載入模型
 import zipfile
 with zipfile.ZipFile("models/models_package.zip", 'r') as zip_ref:
     zip_ref.extractall("models/")
+import cloudpickle  # 改用 cloudpickle 載入模型
 from dotenv import load_dotenv
 from flask import Flask, request, abort
 from apscheduler.schedulers.background import BackgroundScheduler
