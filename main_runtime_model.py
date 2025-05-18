@@ -7,7 +7,7 @@ from flask import Flask, request, abort
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 from googletrans import Translator
-
+from scraper_sofascore import get_games_from_sofascore
 from proxy.odds_fetcher import get_odds_from_proxy
 from proxy.odds_proxy import fetch_oddspedia_soccer
 
@@ -69,8 +69,7 @@ def translate_team_name(name):
 
 # 模擬資料（未來可串接即時資料）
 def get_games(sport="nba"):
-    if sport == "nba":
-        return [{"home_team": "Lakers", "away_team": "Warriors", "home_score": 110, "away_score": 105}]
+    return get_games_from_sofascore(sport)
     elif sport == "mlb":
         return [{"home_team": "Yankees", "away_team": "Red Sox", "home_score": 4, "away_score": 6}]
     elif sport == "soccer":
