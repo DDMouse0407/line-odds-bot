@@ -30,25 +30,28 @@ model_win = joblib.load("models/model_home_win.pkl")
 model_spread = joblib.load("models/model_spread.pkl")
 model_over = joblib.load("models/model_over.pkl")
 
-# 模擬比賽資料（未來可改為爬蟲動態抓取）
-def get_today_games():
-    return [
-        {"home_team": "Lakers", "away_team": "Warriors", "home_score": 110, "away_score": 105},
-        {"home_team": "Celtics", "away_team": "Heat", "home_score": 100, "away_score": 102},
-    ]
+# 模擬比賽資料（之後可整合爬蟲或 DB）
+def get_games(sport="nba"):
+    if sport == "nba":
+        return [{"home_team": "Lakers", "away_team": "Warriors", "home_score": 110, "away_score": 105}]
+    elif sport == "mlb":
+        return [{"home_team": "Yankees", "away_team": "Red Sox", "home_score": 4, "away_score": 6}]
+    elif sport == "soccer":
+        return [{"home_team": "Liverpool", "away_team": "Man City", "home_score": 2, "away_score": 3}]
+    return []
 
-# AI 推薦產生器
-def generate_ai_prediction():
-    games = get_today_games()
-    msg = f"🏀 AI 賽事預測 ({datetime.now().strftime('%m/%d')})\n\n"
+# AI 推薦文字產生器
+def generate_ai_prediction(sport="nba"):
+    games = get_games(sport)
+    title = {"nba": "🏀 NBA", "mlb": "⚾ MLB", "soccer": "⚽ 足球"}.get(sport, "📊 AI 賽事")
+    msg = f"{title} 推薦（{datetime.now().strftime('%m/%d')}）\n\n"
     for g in games:
         X = pd.DataFrame([[g["home_score"], g["away_score"]]], columns=["home_score", "away_score"])
         win = model_win.predict(X)[0]
         spread = model_spread.predict(X)[0]
         ou = model_over.predict(X)[0]
-
         msg += f"{g['home_team']} vs {g['away_team']}\n"
-        msg += f"預測勝方：{'主隊' if win == 1 else '客隊'}\n"
+        msg += f"預測勝方：{'主隊' if win else '客隊'}\n"
         msg += f"推薦盤口：{'主隊過盤' if spread else '客隊受讓'}\n"
         msg += f"大小分推薦：{'大分' if ou else '小分'}\n\n"
     return msg
@@ -75,21 +78,31 @@ def test_push():
     line_bot_api.push_message(PushMessageRequest(to=USER_ID, messages=[TextMessage(text=msg)]))
     return "✅ 已手動推播"
 
-# === LINE 指令回覆 ===
+# LINE 指令處理
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
     user_text = event.message.text.strip()
-    if user_text.startswith("/查詢"):
-        reply = generate_ai_prediction()
+    if user_text.startswith("/查詢") or user_text == "/NBA查詢":
+        reply = generate_ai_prediction("nba")
+    elif user_text == "/MLB查詢":
+        reply = generate_ai_prediction("mlb")
+    elif user_text == "/足球查詢":
+        reply = generate_ai_prediction("soccer")
     else:
-        reply = "請輸入 /查詢 查看今日 AI 推薦結果\n或使用 /test 測試推播功能"
+        reply = (
+            "請輸入以下指令查詢推薦：\n"
+            "/查詢 或 /NBA查詢\n"
+            "/MLB查詢\n"
+            "/足球查詢\n"
+            "/test 測試推播"
+        )
+
     line_bot_api.reply_message(
         ReplyMessageRequest(
             reply_token=event.reply_token,
             messages=[TextMessage(text=reply)]
         )
     )
-
 # === 定時任務 ===
 scheduler = BackgroundScheduler()
 
