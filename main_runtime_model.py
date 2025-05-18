@@ -10,6 +10,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 from googletrans import Translator
 import requests
+from bs4 import BeautifulSoup
 from proxy.odds_proxy import fetch_oddspedia_soccer
 
 from linebot.v3.messaging import MessagingApi, Configuration, ApiClient
