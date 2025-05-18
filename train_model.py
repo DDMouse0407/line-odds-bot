@@ -2,7 +2,7 @@ import pandas as pd
 import os
 from xgboost import XGBClassifier
 from sklearn.model_selection import train_test_split
-import joblib
+import cloudpickle  # 改用 cloudpickle 儲存
 
 # 載入模擬資料
 nba_path = "data/nba/nba_history_2023_2024.csv"
@@ -16,14 +16,18 @@ nba_df["over_result"] = ((nba_df["home_score"] + nba_df["away_score"]) > 220).as
 # 特徵欄位
 X = nba_df[["home_score", "away_score"]]
 
-# 模型與儲存資料夾
+# 模型儲存資料夾
 os.makedirs("models", exist_ok=True)
 
 def train_and_save(X, y, filename):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
     model = XGBClassifier(use_label_encoder=False, eval_metric="logloss")
     model.fit(X_train, y_train)
-    joblib.dump(model, f"models/{filename}")
+    
+    # 改用 cloudpickle 儲存
+    with open(f"models/{filename}", "wb") as f:
+        cloudpickle.dump(model, f)
+
     print(f"✅ 模型已儲存：models/{filename}")
 
 # 訓練並儲存三個模型
