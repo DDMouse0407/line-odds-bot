@@ -10,7 +10,7 @@ def get_games_from_sofascore(sport="nba"):
         "npb": "https://www.sofascore.com/baseball/japan/pro-yakyu-npb",
         "soccer": "https://www.sofascore.com/football"
     }
-    url = url_map.get(sport)
+    url = f"https://sofascore-proxy-production.up.railway.app{url_map.get(sport)}"
     if not url:
         return []
 
