@@ -90,7 +90,7 @@ def generate_ai_prediction(sport="nba"):
 def webhook():
     try:
         body = request.get_data(as_text=True)
-        events = CallbackRequest.from_json(json.loads(body)).events
+        events = CallbackRequest.from_json(body).events
         for event in events:
             if isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent):
                 handle_message(event)
