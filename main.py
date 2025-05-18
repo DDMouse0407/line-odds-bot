@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 import joblib
+from proxy.odds_fetcher import get_odds_from_proxy
 from proxy.odds_proxy import fetch_oddspedia_soccer
 
 @app.route("/odds-proxy", methods=["GET"])
@@ -48,17 +49,28 @@ def get_games(sport="nba"):
 # AI 推薦文字產生器
 def generate_ai_prediction(sport="nba"):
     games = get_games(sport)
+    odds_data = get_odds_from_proxy()  # 加入賠率抓取
     title = {"nba": "🏀 NBA", "mlb": "⚾ MLB", "soccer": "⚽ 足球"}.get(sport, "📊 AI 賽事")
     msg = f"{title} 推薦（{datetime.now().strftime('%m/%d')}）\n\n"
+    
     for g in games:
         X = pd.DataFrame([[g["home_score"], g["away_score"]]], columns=["home_score", "away_score"])
         win = model_win.predict(X)[0]
         spread = model_spread.predict(X)[0]
         ou = model_over.predict(X)[0]
+
         msg += f"{g['home_team']} vs {g['away_team']}\n"
         msg += f"預測勝方：{'主隊' if win else '客隊'}\n"
         msg += f"推薦盤口：{'主隊過盤' if spread else '客隊受讓'}\n"
-        msg += f"大小分推薦：{'大分' if ou else '小分'}\n\n"
+        msg += f"大小分推薦：{'大分' if ou else '小分'}\n"
+
+        # 賠率顯示（模糊比對）
+        for o in odds_data:
+            if g["home_team"] in o["match"] and g["away_team"] in o["match"]:
+                msg += f"實際賠率：{o['home_odds']} / {o['away_odds']}\n"
+                break
+
+        msg += "\n"
     return msg
 
 # === Flask 路由 ===
