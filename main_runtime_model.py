@@ -1,6 +1,7 @@
 import os
 import json
 import pandas as pd
+from sklearn.linear_model import LogisticRegression
 from dotenv import load_dotenv
 from flask import Flask, request, abort
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -8,7 +9,6 @@ from datetime import datetime
 
 from proxy.odds_fetcher import get_odds_from_proxy
 from proxy.odds_proxy import fetch_oddspedia_soccer
-from train_models_runtime import train_models  # 動態訓練模型
 
 from linebot.v3.messaging import MessagingApi, Configuration, ApiClient
 from linebot.v3.messaging.models import TextMessage, PushMessageRequest, ReplyMessageRequest
@@ -26,6 +26,27 @@ line_bot_api = MessagingApi(api_client)
 app = Flask(__name__)
 
 # === 動態訓練模型 ===
+def train_models():
+    nba_path = 'data/nba/nba_history_2023_2024.csv'
+    if not os.path.exists(nba_path):
+        raise FileNotFoundError(f"找不到資料檔案：{nba_path}")
+
+    nba_df = pd.read_csv(nba_path)
+    nba_df['home_win'] = (nba_df['home_score'] > nba_df['away_score']).astype(int)
+    nba_df['spread'] = ((nba_df['home_score'] - nba_df['away_score']) > -2.5).astype(int)
+    nba_df['over_under'] = ((nba_df['home_score'] + nba_df['away_score']) > 220).astype(int)
+
+    X = nba_df[['home_score', 'away_score']]
+    y_win = nba_df['home_win']
+    y_spread = nba_df['spread']
+    y_over = nba_df['over_under']
+
+    model_win = LogisticRegression().fit(X, y_win)
+    model_spread = LogisticRegression().fit(X, y_spread)
+    model_over = LogisticRegression().fit(X, y_over)
+
+    return model_win, model_spread, model_over
+
 model_win, model_spread, model_over = train_models()
 
 # 模擬資料（後續會改成即時資料）
