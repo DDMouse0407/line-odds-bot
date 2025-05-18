@@ -2,7 +2,7 @@ import requests
 
 def get_odds_from_proxy():
     try:
-        proxy_url = "https://你的專案名稱.up.railway.app/odds-proxy"  # 替換為你的網址
+        proxy_url = "https://line-odds-bot.up.railway.app/odds-proxy"
         response = requests.get(proxy_url, timeout=10)
         data = response.json()
         if data["status"] == "success":
