@@ -60,17 +60,12 @@ else:
 
 translator = Translator()
 
+# 同步翻譯
 def translate_team_name(name):
-    if name in team_name_cache:
-        return team_name_cache[name]
     try:
-        result = translator.translate(name, src="en", dest="zh-tw")
-        team_name_cache[name] = result.text
-        with open(CACHE_FILE, "w", encoding="utf-8") as f:
-            json.dump(team_name_cache, f, ensure_ascii=False)
-        return result.text
+        return translator.translate(name, dest="zh-tw").text
     except:
-        return name
+        return name  # 如果失敗就顯示原名
 
 # 模擬資料（後續會改成即時資料）
 def get_games(sport="nba"):
