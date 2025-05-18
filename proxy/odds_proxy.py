@@ -25,7 +25,7 @@ def fetch_oddspedia_soccer():
                 }
                 matches.append(match)
 
-        return {"status": "success", "data": matches[:5]}
+        return jsonify({"status": "success", "data": 賠率資料列表})
 
     except Exception as e:
         return {"status": "error", "message": str(e)}
