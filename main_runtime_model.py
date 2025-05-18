@@ -1,3 +1,5 @@
+# main_runtime_model_v1_4.py
+
 import os
 import json
 import pandas as pd
@@ -45,7 +47,7 @@ def train_models():
 
 model_win, model_spread, model_over = train_models()
 
-# === Google 翻譯隊名快取 ===
+# === 翻譯快取 ===
 CACHE_FILE = "team_translation_cache.json"
 if os.path.exists(CACHE_FILE):
     with open(CACHE_FILE, "r", encoding="utf-8") as f:
@@ -67,27 +69,28 @@ def translate_team_name(name):
     except Exception:
         return name
 
-# 即時資料來源（sofascore）
+# === 取得即時比賽資料 ===
 def get_games(sport="nba"):
-    if sport == "nba":
-        return get_games_from_sofascore("nba")
-    elif sport == "mlb":
-        return get_games_from_sofascore("mlb")
-    elif sport == "npb":
-        return get_games_from_sofascore("npb")
-    elif sport == "kbo":
-        return get_games_from_sofascore("kbo")
-    elif sport == "soccer":
-        return get_games_from_sofascore("soccer")
-    else:
-        return []
-# AI 推薦訊息產生
+    return get_games_from_sofascore(sport)
+
+# === AI 推薦訊息 ===
 def generate_ai_prediction(sport="nba"):
     games = get_games(sport)
     print(f"[DEBUG] {sport} games 抓到幾筆：{len(games)}")
     print(games)
+
+    if not games:
+        return f"{sport.upper()} 無比賽資料，請稍後再試。"
+
     odds_data = get_odds_from_proxy()
-    title = {"nba": "🏀 NBA", "mlb": "⚾ MLB", "soccer": "⚽ 足球"}.get(sport, "📊 AI 賽事")
+    title_map = {
+        "nba": "🏀 NBA",
+        "mlb": "⚾ MLB",
+        "npb": "🇯🇵 NPB",
+        "kbo": "🇰🇷 KBO",
+        "soccer": "⚽ 足球"
+    }
+    title = title_map.get(sport, "📊 AI 賽事")
     msg = f"{title} 推薦（{datetime.now().strftime('%m/%d')}）\n\n"
 
     for g in games:
@@ -108,7 +111,6 @@ def generate_ai_prediction(sport="nba"):
             if g["home_team"] in o["match"] and g["away_team"] in o["match"]:
                 msg += f"實際賠率：{o['home_odds']} / {o['away_odds']}\n"
                 break
-
         msg += "\n"
     return msg
 
@@ -128,46 +130,43 @@ def webhook():
 
 def handle_message(event):
     text = event.message.text.strip()
-    sport_map = {
-        "/查詢": "nba",
-        "/NBA查詢": "nba",
-        "/MLB查詢": "mlb",
-        "/NPB查詢": "npb",
-        "/KBO查詢": "kbo",
-        "/足球查詢": "soccer"
-    }
-    if text in sport_map:
-        reply = generate_ai_prediction(sport_map[text])
+    if text.startswith("/查詢") or text == "/NBA查詢":
+        reply = generate_ai_prediction("nba")
+    elif text == "/MLB查詢":
+        reply = generate_ai_prediction("mlb")
+    elif text == "/NPB查詢":
+        reply = generate_ai_prediction("npb")
+    elif text == "/KBO查詢":
+        reply = generate_ai_prediction("kbo")
+    elif text == "/足球查詢":
+        reply = generate_ai_prediction("soccer")
     else:
         reply = (
             "請輸入以下指令查詢推薦：\n"
             "/查詢 或 /NBA查詢\n"
-            "/MLB查詢\n"
-            "/NPB查詢\n"
-            "/KBO查詢\n"
+            "/MLB查詢 /NPB查詢 /KBO查詢\n"
             "/足球查詢\n"
             "/test 測試推播"
         )
     line_bot_api.reply_message(
         ReplyMessageRequest(reply_token=event.reply_token, messages=[TextMessage(text=reply)])
     )
-# 測試推播
+
 @app.route("/test", methods=["GET"])
 def test_push():
     msg = generate_ai_prediction()
     line_bot_api.push_message(PushMessageRequest(to=USER_ID, messages=[TextMessage(text=msg)]))
     return "✅ 測試推播完成"
 
-# 賠率代理 API
 @app.route("/odds-proxy", methods=["GET"])
 def odds_proxy():
     return fetch_oddspedia_soccer()
 
 @app.route("/")
 def home():
-    return "✅ LINE Bot v3 運作中"
+    return "✅ LINE Bot v1.4 運作中"
 
-# 定時推播任務
+# === 定時推播任務 ===
 scheduler = BackgroundScheduler()
 
 @scheduler.scheduled_job("cron", minute="0")
