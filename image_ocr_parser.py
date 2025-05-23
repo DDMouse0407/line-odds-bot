@@ -1,49 +1,40 @@
+# image_handler.py
 import pytesseract
 from PIL import Image
+import io
 import re
 
-def extract_betting_info_from_image(image_path):
+def extract_info_from_image(image_bytes):
     # 開啟圖片
-    img = Image.open(image_path)
+    image = Image.open(io.BytesIO(image_bytes))
+    
+    # OCR 文字辨識
+    text = pytesseract.image_to_string(image, lang="eng+chi_tra")
+    
+    # 嘗試擷取資訊（你可以再調整這些規則）
+    lines = text.split("\n")
+    lines = [line.strip() for line in lines if line.strip() != ""]
 
-    # OCR 文字辨識（簡體 + 繁體）
-    text = pytesseract.image_to_string(img, lang='chi_tra+eng')
-
-    # 轉為一行一行
-    lines = text.split('\n')
-    lines = [line.strip() for line in lines if line.strip()]
-
-    result = {
+    info = {
         "home_team": None,
         "away_team": None,
         "spread": None,
-        "total_points": None,
-        "raw_text": lines
+        "total": None
     }
 
-    # 嘗試抓出主客隊
-    team_pattern = re.compile(r"(.+?)\s+vs\s+(.+)", re.IGNORECASE)
     for line in lines:
-        match = team_pattern.search(line)
-        if match:
-            result["home_team"] = match.group(1).strip()
-            result["away_team"] = match.group(2).strip()
-            break
-
-    # 嘗試抓讓分盤
-    for line in lines:
-        if "讓分" in line or "+" in line or "-" in line:
-            spread_match = re.findall(r"[-+]?\d+\.\d+", line)
+        if "vs" in line:
+            teams = line.split("vs")
+            if len(teams) == 2:
+                info["home_team"] = teams[0].strip()
+                info["away_team"] = teams[1].strip()
+        if "讓" in line or "+" in line or "-" in line:
+            spread_match = re.search(r'[-+]?\d+\.\d+', line)
             if spread_match:
-                result["spread"] = spread_match[0]
-                break
-
-    # 嘗試抓大小分
-    for line in lines:
-        if "大" in line or "小" in line or "over" in line.lower() or "under" in line.lower():
-            total_match = re.findall(r"\d+\.\d+", line)
+                info["spread"] = spread_match.group()
+        if "大小" in line or "over" in line.lower() or "under" in line.lower():
+            total_match = re.search(r'\d{3}\.?\d*', line)
             if total_match:
-                result["total_points"] = total_match[0]
-                break
+                info["total"] = total_match.group()
 
-    return result
+    return text, info
